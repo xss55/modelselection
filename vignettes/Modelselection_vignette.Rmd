@@ -1,0 +1,220 @@
+---
+title: "Model selection for linear models and generalized linear models with BIC-based posterior probability"
+output: 
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+author: Allison N. Tegge, Shuangshuang Xu, and Marco A. R. Ferreira
+
+vignette: >
+  %\VignetteIndexEntry{Model selection for linear models and generalized linear models with BIC-based posterior probability}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(modelselection)
+```
+
+
+
+# Introduction
+
+Model selection methods can screen and identify associated variables from regression variables. A simpler model with fewer variables is easier to understand in the real world. 
+
+The `modelselection` package uses Bayesian Information Criterion (BIC), Model Posterior Probability (MPP), and Posterior Inclusion Probability (PIP) to perform model selection for linear models (LM) and generalized linear models (GLM). The package provides the best model, BIC, and MPP for candidate models, and PIP for each predictor. This vignette contains an example to illustrate how to use `modelselection`. 
+
+
+## Model
+
+The linear models used in the `modelselection` package are of the form
+$$ \pmb{Y}=X\pmb{\beta}+ \pmb{\epsilon},$$
+where
+
+* $\pmb{Y}$ is the vector of observations.
+* $X$ is the matrix of covariates.
+* $\pmb{\beta}$ is the vector of regression coefficients.
+* $\pmb{\epsilon}$ is the vector of errors.
+
+
+The generalized linear models used in the `modelselection` package assume that the observations come from a distribution that belongs to the exponential family of distributions. In addition, these GLMs assume that the mean of the observations is related to the covariates through a link function $g$ such that
+$$E(\pmb{Y}|X) = g^{-1}(X\pmb{\beta}),$$
+where
+
+* $\pmb{Y}$ is the vector of observations.
+* $X$ is the matrix of covariates.
+* $\pmb{\beta}$ is the vector of regression coefficients.
+* $E(\pmb{Y}|X)$ is the expected value of $\pmb{Y}$ conditional on $X$.
+* $g()$ is the link function.
+
+
+## BIC
+
+The Bayesian Information Criterion (BIC) is defined as:
+
+$$
+\text{BIC} = -2 \log(L) + k \log(n),
+$$
+
+where
+
+* $L$ is the likelihood function of the model computed at the MLE.
+* $k$ is the number of parameters in the model.
+* $n$ is the number of observations.
+
+Lower value of BIC indicates a better model.
+
+
+
+
+
+
+# Example
+
+## Installation
+
+You can install `modelselect` from CRAN with:
+
+```{r, warning=FALSE}
+install.packages("modelselection")
+```
+
+
+## Data
+
+The `modelselect.lm()` function can take a `data frame` which contains both the response and predictors. For example, here are the first 5 rows of a data frame, where X1 through X6 are six candidate predictors. Y is the response variable which is simulated from a linear model that contains the predictors X1, X2, and X3.
+
+```{r}
+data("dat")
+head(dat,5)
+```
+
+The data frame `dat` above is attached in the `modelselection` package. 
+ 
+## Formula
+
+In this example, we use `modelselect.lm` to select the predictors in a linear model. The `modelselect.lm` function takes a formula and dataset as input. In the example below, we consider the model space that contains all possible linear models generated with the predictors X1, X2, X3, and X4. 
+
+
+```{r}
+example1 <- modelselect.lm(formula = Y~X1+X2+X3+X4, data = dat)
+```
+
+The output of `modelselect.lm` returns a table of BICs and MPPs of competing models and a table of PIPs of candidate predictors.
+```{r}
+head(example1$models)
+example1$variables
+```
+
+Here are some additional examples on how to write a formula. In the next example, the formula `~.` includes all predictors in the data frame.
+```{r}
+example2 <- modelselect.lm(formula = Y~., data = dat)
+example2$variables
+```
+
+# Interactions
+
+The next example includes an interaction term between the predictors X1 and X2.
+```{r}
+example3 <- modelselect.lm(formula = Y~X1*X2+X3+X4+X5+X6, data = dat)
+example3$variables
+```
+Note that because `modelselect.lm` uses `lm` notation for formulas, we could also have used notation `X1+X2+X3+X4+X5+X6+X1:X2`.
+
+
+# Stochastic search
+
+`modelselect.lm` function uses `GA_var` as a threshold to do exhaustive model search or stochastic model search. The default value of `GA_var` is 16. If the number of variables is smaller than `GA_var`, then `modelselect.lm` does exhaustive model search, otherwise it uses genetic algorithm (GA) to perform stochastic model search. `maxiterations` is the maximum number of iterations to run before the GA search is stopped `runs_til_stop` is	the number of consecutive generations without any improvement in the best fitness value before the GA is stopped. `monitor` is a logical defaulting to TRUE showing the evolution of the search. If `monitor` = FALSE, any output is suppressed.
+
+```{r}
+example5 <- modelselect.lm(formula = Y~X1+X2+X3+X4, data = dat, GA_var = 16, maxiterations = 2000, runs_til_stop = 1000, monitor = TRUE, popSize = 100)
+```
+
+## Model fit
+
+Use `lm.best` to obtain the model fit for the best model. `lm.best` takes the result from `modelselect.lm` as an input. In this example, we obtain the model fit by using `method = "models"`. The fitted model is the model with the highest MPP. The return of `lm.best` is the same as that from `lm`. We may use `$` to obtain the output statistics, for example `$coefficients` for regressor coefficients' estimate.
+
+```{r}
+lm_model <- lm.best(object = example1, method = "models")
+lm_model$coefficients
+```
+
+In the next example, we obtain the model fit by using `method = "variables"`. The fitted model has the predictors with PIP larger than `threshold`. 
+
+```{r}
+lm_var <- lm.best(object = example2, method = "variables", threshold = 0.9)
+```
+
+Note that because the output of `lm.best` function is of class `lm`, we can apply the function `summary` to the output of `lm.best`. Note that the summary table should be interpreted as conditional on the best model being the true model. 
+```{r}
+summary(lm_model)
+```
+
+## GLM
+
+Here is an example on how to perform model selection for generalized linear models. The `modelselect.glm()` function takes a data frame which contains response and predictors. In this toy example, the data frame `glmdat` contains six candidate predictors X1 to X6. The response variable Y was actually simulated from a Bernoulli GLM with predictors X1, X2, and X3.
+
+```{r}
+data("glmdat")
+head(glmdat,5)
+```
+
+Data `glmdat` above are attached in the `modelselection` package. In the next example, we use the function `modelselect.glm` to find the best model and to compute the PIPs of the several candidate predictors.
+
+```{r}
+example.glm <- modelselect.glm(formula = Y~., family = "binomial", data = glmdat)
+example.glm$variables
+```
+
+
+Then, we use `glm.best` to obtain the model fit for the best model. `glm.best` takes the result from `modelselect.glm` as an argument.
+```{r}
+glm_model <- glm.best(object = example.glm, family = "binomial", method = "models", threshold = 0.95)
+```
+The function `summary` can be applied to the result of `glm.best`.
+```{r}
+summary(glm_model)
+```
+
+
+
+
+# Functions
+
+In the `modelselection` package, there are four functions: `modelselect.lm()` and `lm.best()` for LM, and `modelselect.glm()` and `glm.best()` for GLM.
+
+* Function `modelselect.lm()` uses BIC to perform model selection for LMs. The function `modelselect.lm()` takes a formula for the full model and a data frame containing the response variable and predictor variables as input. It returns a list of two tables: 1. a table for candidate models with BIC and posterior probabilities; 2. a table for candidate variables with posterior inclusion probabilities. In addition, it returns the original data with variables in the formula.
+
+* Function `lm.best()` takes result from `modelselect.lm()` as object. There are two methods to select the best model. `method="models"` uses models' BIC or posterior probabilities to select the best model. `method="variables"` selects the variables with PIP larger than the `threshold`.
+
+* Function `modelselect.glm()` uses BIC to perfrom model selection for GLMs. The function `modelselect.glm()` takes formula, data containing response variable and predictors, and family function for error distribution as input. It returns a list of two tables: 1. a table for candidate models with BIC and posterior probabilities; 2. a table for candidate variables with posterior inclusion probabilities. In addition,it returns the original data with variables in the formula.
+
+* Function `glm.best()` takes result from `modelselect.glm()` as object. There are two methods to select the best model. `method="models"` uses models' BIC or posterior probabilities to select the best model. `method="variables"` selects the variables with PIP larger than the `threshold`.
+
+
+# Reference
+
+Xu, Shuangshuang, Tegge, Allison, and Ferreira, M. A. R. (202X). paper, Journal, .
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
