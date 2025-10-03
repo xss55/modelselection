@@ -51,30 +51,16 @@ modelselect.glm <- function(formula, data, family, GA_var=16, maxiterations = 20
   }
 
   response_name <- as.character(attr(terms_obj, "variables"))[attr(terms_obj, "response") + 1]
-  #Y <- data[, response_name]
 
   X_colname <- attr(terms_obj, "term.labels")
 
-  # if(!is.numeric(Y)){
-  #   stop("Y should be numeric data.")
-  # }
-
-  # if(!is.numeric(X)){
-  #   stop("X should be numeric data.")
-  # }
-
-
-
   K <- length(X_colname)
   if(K < GA_var){
-    #low dimension
-    #bic and posterior probability for each model
     binary_matrix <- rep(list(0:1), K)
     binary_matrix <- as.matrix(expand.grid(binary_matrix))
 
     model_bic_prob <- c()
     for (i in 0:(2^K-1)){
-      #Xc <- X[, which(binary_matrix[i+1,]==1), drop = FALSE]
       if(i == 0){
         fit <- stats::glm(formula = paste0(response_name, "~1"), data = data, family = family)
         bic <-  stats::BIC(fit)
@@ -87,11 +73,9 @@ modelselect.glm <- function(formula, data, family, GA_var=16, maxiterations = 20
       }else{
 
         sub_colname <- X_colname[which(binary_matrix[i+1,]==1)]
-        sub_var_name <- strsplit(sub_colname, split = ":")
-        sub_var_len <- unlist(lapply(sub_var_name, length))
+        fit <- stats::glm(formula = paste0(paste0(response_name, "~"), paste(sub_colname,collapse = "+")), data = data, family = family)
 
-        if(!length(which(sub_var_len > 1))){
-          fit <- stats::glm(formula = paste0(paste0(response_name, "~"), paste(sub_colname,collapse = "+")), data = data, family = family)
+        if(!check_model_hierarchy(fit)){
           bic <-  stats::BIC(fit)
           if(is.na(bic)){
             model_bic_prob <- rbind(model_bic_prob, c(binary_matrix[i+1,], Inf))
@@ -99,21 +83,6 @@ modelselect.glm <- function(formula, data, family, GA_var=16, maxiterations = 20
             model_bic_prob <- rbind(model_bic_prob, c(binary_matrix[i+1,], bic))
           }
 
-        }else{
-          sub_interaction <- sub_var_name[which(sub_var_len > 1)]
-          sub_not_interaction <- sub_colname[which(sub_var_len == 1)]
-
-          if(Reduce("&", unlist(lapply(sub_interaction, function(x){x %in% sub_not_interaction})))){
-
-            fit <- stats::glm(formula = paste0(paste0(response_name, "~"), paste(sub_colname,collapse = "+")), data = data, family = family)
-            bic <-  stats::BIC(fit)
-            if(is.na(bic)){
-              model_bic_prob <- rbind(model_bic_prob, c(binary_matrix[i+1,], Inf))
-            }else{
-              model_bic_prob <- rbind(model_bic_prob, c(binary_matrix[i+1,], bic))
-            }
-
-          }
         }
       }
     }
@@ -121,12 +90,9 @@ modelselect.glm <- function(formula, data, family, GA_var=16, maxiterations = 20
     bic <- model_bic_prob[,ncol(model_bic_prob)]
     bestmodel <- model_bic_prob[which.min(bic),-ncol(model_bic_prob)]
 
-    #postperior inclusion probability
     dat <- model_bic_prob[,1:K]
 
   }else{
-    #high dimension
-    # Do model search with genetic algorithm
 
     fitness_ftn <- function(string){
       if(sum(string) == 0){
@@ -137,21 +103,16 @@ modelselect.glm <- function(formula, data, family, GA_var=16, maxiterations = 20
         k <- length(model)
 
         sub_colname <- X_colname[model]
-        sub_var_name <- strsplit(sub_colname, split = ":")
-        sub_var_len <- unlist(lapply(sub_var_name, length))
+        fit <-stats::glm(formula = paste0(paste0(response_name, "~"), paste(sub_colname,collapse = "+")), data = data, family = family)
+        if(!check_model_hierarchy(fit)){
 
-        if(!length(which(sub_var_len > 1))){
-          return(-stats::BIC(stats::glm(formula = paste0(paste0(response_name, "~"), paste(sub_colname,collapse = "+")), data = data, family = family)))
-        }else{
-          sub_interaction <- sub_var_name[which(sub_var_len > 1)]
-          sub_not_interaction <- sub_colname[which(sub_var_len == 1)]
-          if(Reduce("&", unlist(lapply(sub_interaction, function(x){x %in% sub_not_interaction})))){
-
-            return(-stats::BIC(stats::glm(formula = paste0(paste0(response_name, "~"), paste(sub_colname,collapse = "+")), data = data, family = family)))
-
-          }else{
+          bic <-  stats::BIC(fit)
+          if(is.na(bic)){
             return(-Inf)
+          }else{
+            return(-bic)
           }
+
         }
       }
     }
@@ -182,12 +143,12 @@ modelselect.glm <- function(formula, data, family, GA_var=16, maxiterations = 20
     dupes <- duplicated(dat)
     dat <- dat[!dupes,]
     ans@fitness <- ans@fitness[!dupes]
-    bic <- -ans@fitness # BIC
+    bic <- -ans@fitness
     model_bic_prob <- cbind(dat,bic)
-    model_bic_prob <- na.omit(model_bic_prob)
+    model_bic_prob <- stats::na.omit(model_bic_prob)
     bic <- model_bic_prob[,ncol(model_bic_prob)]
     dat <- model_bic_prob[,1:(ncol(model_bic_prob)-1)]
-    bestmodel <- dat[which.min(bic),] #ans@solution
+    bestmodel <- dat[which.min(bic),]
 
   }
 
@@ -196,7 +157,6 @@ modelselect.glm <- function(formula, data, family, GA_var=16, maxiterations = 20
   model_bic_prob <- cbind(model_bic_prob, postprob)
   model_bic_prob <- model_bic_prob[!(bic == Inf),]
 
-  #postperior inclusion probability
   var_pip <- X_colname
   if(K == 1){
     pip <- sum(dat * postprob)

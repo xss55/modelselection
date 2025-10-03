@@ -47,19 +47,16 @@ lm.best <- function(object, method = "models", threshold = 0.95, x = FALSE, y = 
   }
 
   if(length(fixedeffect_name) == 0){
-    fit <- stats::lm(formula = as.formula(paste0(response_name,"~1")),
+    fit <- stats::lm(formula = stats::as.formula(paste0(response_name,"~1")),
                      data = data, x=x, y=y)
     fit$call <- call("lm", stats::as.formula(paste0(response_name, "~1")))
   }else{
-    fit <- stats::lm(formula = as.formula(paste0(response_name,"~", paste(fixedeffect_name, collapse ="+"))),
+    fit <- stats::lm(formula = stats::as.formula(paste0(response_name,"~", paste(fixedeffect_name, collapse ="+"))),
                      data = data, x=x, y=y)
     fit$call <- call("lm", stats::as.formula(paste0(response_name,"~", paste(fixedeffect_name, collapse ="+"))))
-    # names(fit$coefficients)[2:(length(index)+1)] <- colnames(Xsub)
   }
 
-  # if(method == "variables"){
-  #     fit[["threshold"]] <- threshold
-  # }
+
   cat("Call:\n")
   print(fit$call)
 

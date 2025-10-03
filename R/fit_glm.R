@@ -62,18 +62,14 @@ glm.best <- function(object, family, method = "models", threshold = 0.95, x = FA
   }
 
   if(length(fixedeffect_name) == 0){
-    fit <- stats::glm(formula = as.formula(paste0(response_name,"~1")),
+    fit <- stats::glm(formula = stats::as.formula(paste0(response_name,"~1")),
                       data = data, family=family, x=x, y=y)
     fit$call <- call("glm", formula = stats::as.formula(paste0(response_name, "~1")), family = family)
   }else{
-    fit <- stats::glm(formula = as.formula(paste0(response_name,"~", paste(fixedeffect_name, collapse ="+"))),
+    fit <- stats::glm(formula = stats::as.formula(paste0(response_name,"~", paste(fixedeffect_name, collapse ="+"))),
                       data = data, family=family, x=x, y=y)
     fit$call <- call("glm", formula = stats::as.formula(paste0(response_name,"~", paste(fixedeffect_name, collapse ="+"))), family = family)
-    #names(fit$coefficients)[2:(length(index)+1)] <- colnames(Xsub)
   }
-
-  #fit[["threshold"]] <- threshold
-
 
   cat("Call:\n")
   print(fit$call)
